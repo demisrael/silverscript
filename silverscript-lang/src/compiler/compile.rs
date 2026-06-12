@@ -3591,7 +3591,9 @@ fn compile_call_expr<'i>(
         }
         "blake2b" => compile_blake2b_call(&mut ctx, args),
         "checkSig" => compile_checksig_call(&mut ctx, args),
-        "checkDataSig" => compile_checkdatasig_call(&mut ctx, args),
+        "checkDataSig" => Err(CompilerError::Unsupported(
+            "checkDataSig is not a supported builtin; use checkSig for signature verification".to_string(),
+        )),
         _ => compile_unknown_function_call(name),
     }
 }
@@ -3799,19 +3801,6 @@ fn compile_checksig_call<'i>(ctx: &mut CompileCallContext<'_, 'i>, args: &[Expr<
     compile_call_arg_with_context(ctx, &args[1])?;
     ctx.builder.add_op(OpCheckSig)?;
     *ctx.stack_depth -= 1;
-    Ok(())
-}
-
-fn compile_checkdatasig_call<'i>(ctx: &mut CompileCallContext<'_, 'i>, args: &[Expr<'i>]) -> Result<(), CompilerError> {
-    for arg in args {
-        compile_call_arg_with_context(ctx, arg)?;
-    }
-    for _ in 0..args.len() {
-        ctx.builder.add_op(OpDrop)?;
-        *ctx.stack_depth -= 1;
-    }
-    ctx.builder.add_op(OpTrue)?;
-    *ctx.stack_depth += 1;
     Ok(())
 }
 

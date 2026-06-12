@@ -228,7 +228,6 @@ fn runs_cashc_valid_examples() {
         "p2pkh_with_cast.sil",
         "reassignment.sil",
         "simple_cast.sil",
-        "simple_checkdatasig.sil",
         "simple_constant.sil",
         "simple_covenant.sil",
         "simple_functions.sil",
@@ -699,22 +698,6 @@ fn runs_cashc_valid_examples() {
                 let result = execute_tx(tx, utxo, reused);
                 assert!(result.is_err(), "{example} should fail");
             }
-            "simple_checkdatasig.sil" => {
-                let constructor_args = vec![vec![0u8; 64].into(), vec![1u8; 32].into()];
-                let compiled = compile_contract(&source, &constructor_args, CompileOptions::default()).expect("compile succeeds");
-                let selector = selector_for_compiled(&compiled, "cds");
-                let sigscript = build_sigscript(&[ArgValue::Bytes(b"data".to_vec())], selector);
-                let (mut tx, utxo, reused) = build_tx_context(
-                    compiled.script.clone(),
-                    vec![(1_000, compiled.script.clone()), (1_000, compiled.script.clone())],
-                    2_000,
-                    0,
-                    1,
-                );
-                tx.tx.inputs[0].signature_script = sigscript;
-                let result = execute_tx(tx, utxo, reused);
-                assert!(result.is_ok(), "{example} failed: {}", result.unwrap_err());
-            }
             "simple_constant.sil" => {
                 let constructor_args = vec![];
                 let compiled = compile_contract(&source, &constructor_args, CompileOptions::default()).expect("compile succeeds");
@@ -1044,6 +1027,7 @@ fn compiles_cashc_valid_examples() {
     // - multiline_array_multisig.cash: uses checkMultiSig.
     // - simple_multisig.cash: uses checkMultiSig.
     // - trailing_comma.cash: uses checkMultiSig.
+    // - simple_checkdatasig.sil: uses checkDataSig (not a supported builtin; no engine opcode).
     // - covenant_all_fields.cash: cashtoken-related logic.
     // - token_category_comparison.cash: cashtoken-related logic.
     let examples = [
@@ -1077,7 +1061,6 @@ fn compiles_cashc_valid_examples() {
         "p2pkh_with_cast.sil",
         "reassignment.sil",
         "simple_cast.sil",
-        "simple_checkdatasig.sil",
         "simple_constant.sil",
         "simple_covenant.sil",
         "simple_functions.sil",

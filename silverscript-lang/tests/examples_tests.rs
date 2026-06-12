@@ -472,7 +472,10 @@ fn runs_complex_assignments_example_and_verifies() {
 }
 
 #[test]
-fn compiles_hodl_vault_example_and_verifies() {
+fn hodl_vault_example_no_longer_compiles() {
+    // hodl_vault.sil's oracle leg calls checkDataSig, which is not a supported
+    // builtin (the engine has no data-signature opcode), so the contract must
+    // fail to compile rather than accept any oracle signature.
     let source = load_example_source("hodl_vault.sil");
     let owner = random_keypair();
     let oracle = random_keypair();
@@ -481,54 +484,14 @@ fn compiles_hodl_vault_example_and_verifies() {
 
     let min_block = 900i64;
     let price_target = 10i64;
-    let block_height = 1000u32;
-    let price = 20u32;
-    let oracle_message = [block_height.to_le_bytes(), price.to_le_bytes()].concat();
-    let oracle_sig = vec![0u8; 64];
 
     let constructor_args = vec![owner_pk.to_vec().into(), oracle_pk.to_vec().into(), min_block.into(), price_target.into()];
-    let compiled = compile_contract(&source, &constructor_args, CompileOptions::default()).expect("compile succeeds");
-
-    let input = TransactionInput {
-        previous_outpoint: TransactionOutpoint { transaction_id: TransactionId::from_bytes([7u8; 32]), index: 0 },
-        signature_script: vec![],
-        sequence: 0,
-        mass: SigopCount(1).into(),
-    };
-    let output =
-        TransactionOutput { value: 5000, script_public_key: ScriptPublicKey::new(0, compiled.script.clone().into()), covenant: None };
-
-    let tx = Transaction::new(1, vec![input.clone()], vec![output.clone()], block_height as u64, Default::default(), 0, vec![]);
-    let utxo_entry = UtxoEntry::new(output.value, ScriptPublicKey::new(0, compiled.script.clone().into()), 0, tx.is_coinbase(), None);
-    let mut tx = MutableTransaction::with_entries(tx, vec![utxo_entry.clone()]);
-
-    let reused_values = SigHashReusedValuesUnsync::new();
-    let sig_hash = calc_schnorr_signature_hash(&tx.as_verifiable(), 0, SIG_HASH_ALL, &reused_values);
-    let msg = secp256k1::Message::from_digest_slice(sig_hash.as_bytes().as_slice()).unwrap();
-    let sig = owner.sign_schnorr(msg);
-    let mut signature = Vec::new();
-    signature.extend_from_slice(sig.as_ref().as_slice());
-    signature.push(SIG_HASH_ALL.to_u8());
-
-    // Test spend() function call (build sigscript for spend()).
-    let sigscript = compiled
-        .build_sig_script("spend", vec![signature.clone().into(), oracle_sig.into(), oracle_message.clone().into()])
-        .expect("sigscript builds");
-    tx.tx.inputs[0].signature_script = sigscript;
-
-    let tx = tx.as_verifiable();
-    let sig_cache = Cache::new(10_000);
-    let mut vm = TxScriptEngine::from_transaction_input(
-        &tx,
-        &tx.inputs()[0],
-        0,
-        &utxo_entry,
-        EngineCtx::new(&sig_cache).with_reused(&reused_values),
-        EngineFlags { covenants_enabled: true, ..Default::default() },
+    let err = compile_contract(&source, &constructor_args, CompileOptions::default())
+        .expect_err("hodl_vault.sil must not compile after checkDataSig removal");
+    assert!(
+        err.to_string().contains("checkDataSig is not a supported builtin; use checkSig for signature verification"),
+        "expected the checkDataSig rejection diagnostic, got: {err}"
     );
-
-    let result = vm.execute();
-    assert!(result.is_ok(), "hodl_vault example failed: {}", result.unwrap_err());
 }
 
 #[test]
